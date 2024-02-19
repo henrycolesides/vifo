@@ -35,6 +35,11 @@ static char vifo_name_data[PATH_MAX] = { '\0' };
 static int  vifo_cmd_fd = -1;
 static int  vifo_data_fd = -1;
 
+// Exit handlers:
+void exit_handler(void);
+void sigint_handler(int);
+
+
 // Don't change this
 static const char *colors[] = {
     FRBW
@@ -112,6 +117,7 @@ main(int argc, char *argv[])
 
     // an exit handler would look good here
     // a SIGINT handler would look good here
+    atexit(exit_handler);
     signal(SIGINT, sigint_handler);
     if (is_verbose) {
         fprintf(stderr, "Client: Exit handler established."
@@ -182,15 +188,18 @@ client(void)
         
         memset(cmd, 0, sizeof(cmd));
         result = sscanf(buffer, "%s", cmd);
-        if (result < 1) {
+        if (result < 1) 
+	{
             continue;
         }
-        if (strcmp(cmd, COMMAND_DIR) == 0) {
+        if (strcmp(cmd, COMMAND_DIR) == 0) 
+	{
             // send a request to the client-server for the contents of the remote pwd
             fprintf(stdout, "remote dir:\n");
             
         }
-        else if (strcmp(cmd, COMMAND_PWD) == 0) {
+        else if (strcmp(cmd, COMMAND_PWD) == 0) // Test, not sure 
+	{
             // This looks pretty easy.
             // send the command to the client-server
             write(vifo_cmd_fd, cmd, strlen(cmd));
@@ -207,29 +216,34 @@ client(void)
             vifo_data_fd = -1;
             printf("\n");
         }
-        else if (strcmp(cmd, COMMAND_CD) == 0) {
+        else if (strcmp(cmd, COMMAND_CD) == 0) // <--- do this
+	{
             // send a request to the client-server to change the remote pwd
             // the client-server returns the pwd
 
         }
-        else if (strcmp(cmd, COMMAND_GET) == 0) {
+        else if (strcmp(cmd, COMMAND_GET) == 0) // <--- do this
+	{
             // fetch a file from the client-server
             int filefd = -1;
             char *file = NULL;
 
         }
-        else if (strcmp(cmd, COMMAND_PUT) == 0) {
+        else if (strcmp(cmd, COMMAND_PUT) == 0)  // <--- do this
+	{
             // push a file from the client to the client-server
             int filefd = -1;
             char *file = NULL;
 
         }
-        else if (strcmp(cmd, COMMAND_LPWD) == 0) {
+        else if (strcmp(cmd, COMMAND_LPWD) == 0) // DONE
+	{
             // this is just toooooo easy
             getcwd(cwd, PATH_MAX);
             printf("local pwd:\n%s\n", cwd);
         }
-        else if (strcmp(cmd, COMMAND_LCD) == 0) {
+        else if (strcmp(cmd, COMMAND_LCD) == 0)  // <--- do this
+	{
             // think about using getcwd()
             // This command has 2 forms. The first form requires
             //   a directory follow the lcd string. In the second
@@ -239,23 +253,27 @@ client(void)
             char *dir = NULL;
 
         }
-        else if (strcmp(cmd, COMMAND_LDIR) == 0) {
+        else if (strcmp(cmd, COMMAND_LDIR) == 0) // DONE
+	{
             FILE *dir = NULL;
 
             fprintf(stdout, "local dir:\n");
             dir = popen(DIR_LISTING, "r");
             if (dir != NULL) {
-                while(fgets(buffer, BUFFER_SIZE, dir) != NULL) {
+                while(fgets(buffer, BUFFER_SIZE, dir) != NULL) 
+		{
                     printf("%s", buffer);
                     //fputs(buffer, stdout);
                 }
                 pclose(dir);
             }
         }
-        else if (strcmp(cmd, COMMAND_HELP) == 0) {
+        else if (strcmp(cmd, COMMAND_HELP) == 0)  // DONE
+	{
             fputs(help_string, stdout);
         }
-        else if (strcmp(cmd, COMMAND_CHEER) == 0) {
+        else if (strcmp(cmd, COMMAND_CHEER) == 0) // DONE
+	{
             // no need to change anything in here
             static char cowsay[PATH_MAX] = { '\0' };
             const char *color = colors[rand() % num_colors];
@@ -264,15 +282,32 @@ client(void)
             sprintf(cowsay, COWSAY " \"%s %s %s\"", color, cheer, CRESET);
             system(cowsay);
         }
-        else if (strcmp(cmd, COMMAND_CLEAR) == 0) {
+        else if (strcmp(cmd, COMMAND_CLEAR) == 0)  // DONE
+	{
             fputs(CLEAR, stdout);
         }
-        else if (strcmp(cmd, COMMAND_QUIT) == 0) {
+        else if (strcmp(cmd, COMMAND_QUIT) == 0)  // DONE
+	{
             break;
         }
-        else {
+        else 
+	{
             // unknown command
             printf("Unrecognized command...\n");
         }
     }
+}
+
+void exit_handler(void)
+{
+	// In the future, this will handle cleanup 
+	// to avoid mem leaks
+
+	fprintf(stderr, "Exit handler called!\n");
+}
+
+void sigint_handler(int sig)
+{
+	printf("Signal for %d caught\n", sig);
+	exit(EXIT_SUCCESS);
 }
