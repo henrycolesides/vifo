@@ -34,6 +34,7 @@ main(int argc, char *argv[])
                 fprintf(stderr, "Client-server: verbose enabled\n");
                 break;
             case 'p':
+				fprintf(stderr, "%s\n", optarg);
                 client_pid_str = optarg;
                 break;
             default:
@@ -86,10 +87,13 @@ client_server(const char *client_pid_str)
                 , vifo_name_data);
     }
     // open the command vifo for read-only
+	vifo_cmd_fd = open(vifo_name_cmd, O_RDONLY);
+
     for(;;) {
         ssize_t br = 0;
 
         // read commands from the client
+		read(vifo_cmd_fd, cmd, 10);	
 
         // get the command sent from the client for checking
         if (strcmp(cmd, COMMAND_DIR) == 0) {

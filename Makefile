@@ -27,3 +27,7 @@ $(CS).o: $(CS).c vifo.h
 
 clean:
 	rm -f *.o $(S) $(C) $(CS) \#*
+
+cfg config: all
+	if [ ! -d Testing-server ] ; then mkdir Testing-server; fi ; cd Testing-server ; rm -f * ; ln -fs ../$(S) . ; ln -fs ../$(CS) . ; cp ../?-s.txt .
+	for D in 1 2 3 ; do if [ ! -d Testing-client$${D} ] ; then mkdir Testing-client$${D} ; fi ; cd Testing-client$${D} ; rm -f * ; ln -fs ../$(C) . ; cp ../*.bin . ; cd .. ; done

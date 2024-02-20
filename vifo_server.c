@@ -1,5 +1,5 @@
 // rchaney@pdx.edu
-
+	
 #include <sys/stat.h>
 #include <unistd.h>
 #include <stdio.h>
@@ -21,6 +21,11 @@ static int vifo_fd = -1;
 static char vifo_name[PATH_MAX] = {'\0'};
 
 extern void server(void);
+
+// Handlers
+void exit_handler(void);
+void sigint_handler(int);
+void sigchld_handler(int);
 
 int 
 main(int argc, char *argv[])
@@ -46,9 +51,11 @@ main(int argc, char *argv[])
     if (is_verbose) {
         fprintf(stderr, "Server starting\n");
     }
-    // this is a good place to put an exit handler
-    // this is a good place to have a signal handler for SIGINT
-    // this is a good place to have a signal handler for SIGCHLD
+    
+    // Handler setup
+    atexit(exit_handler);
+    signal(SIGINT, sigint_handler);
+    signal(SIGCHLD, sigchld_handler);
 
     server();
 
@@ -56,6 +63,25 @@ main(int argc, char *argv[])
 }
 
 // Handlers would look good in here
+void exit_handler(void)
+{
+	fprintf(stderr, "Exit handler called!\n");
+	// Testing fifo unlink
+    close(vifo_fd);
+	unlink(vifo_name);
+}
+
+void sigint_handler(int)
+{
+	fprintf(stderr, "Sigint handler called!\n");
+	exit(EXIT_SUCCESS);
+}
+
+void sigchld_handler(int)
+{
+	fprintf(stderr, "Sigchld handler called!\n");
+	// Reap here
+}
 
 void
 server(void)
@@ -72,20 +98,35 @@ server(void)
     }
 
     // make a vifo around here
+	fprintf(stderr, "%s\n", vifo_name);
+	if(mkfifo(vifo_name, VIFO_PERMISSIONS) == 0 && is_verbose > 0)
+	{
+			perror("Making vifo failed!");
+	}
 
-    // Open the FIFO. This call to open() will block until the
+	// Open the FIFO. This call to open() will block until the
     // read side is opened.
-
+	
     for ( ; ; ) {
-        fprintf(stdout, "%s %s", "Server", PROMPT);
+		vifo_fd = open(vifo_name, O_RDONLY);
+		if(vifo_fd < 0)
+		{
+			perror("Opening vifo failed!");
+			exit(EXIT_SUCCESS);
+		}
+
+		fprintf(stdout, "%s %s", "Server", PROMPT);
 
         memset(buffer, 0, BUFFER_SIZE);
 
-        // read from the server vifo
+        // read PID from the server vifo
+		read(vifo_fd, buffer, BUFFER_SIZE);	
 
-        fprintf(stdout, "Server: connection from client pid %s\n", buffer);
+		fprintf(stdout, "Server: connection from client pid %s\n", buffer);
 
         // fork here
+		new_server = fork();	
+
         if (new_server < 0) {
             perror("fork failed");
             exit(EXIT_FAILURE);
@@ -95,6 +136,9 @@ server(void)
             // be sure to check for a failure from exec
             // if exec fails, call perror and exit
             // I used execlp()
+			execlp("./vifo_client_server", "vifo_client_server", "-p", buffer, "-v", (char *) NULL);
+			perror("exec failed");
+			exit(EXIT_FAILURE);
         }
         else {
             // the parent process
