@@ -99,9 +99,23 @@ client_server(const char *client_pid_str)
         if (strcmp(cmd, COMMAND_DIR) == 0) {
             // popen
             FILE *dir = NULL;
-
+			ssize_t br = 0;
             // this will look a lot like the ldir command in
             // the client
+
+			dir = popen(DIR_LISTING, "r");
+			vifo_data_fd = open(vifo_name_data, O_WRONLY);
+			if (dir != NULL)
+			{
+				//while((br = read(dir, buffer, BUFFER_SIZE)) > 0)
+				while(fgets(buffer, BUFFER_SIZE, dir) != NULL)
+				{
+					write(vifo_data_fd, buffer, strlen(buffer));	
+				}
+				pclose(dir);
+			}
+			close(vifo_data_fd);
+			vifo_data_fd = -1;
         }
         else if (strcmp(cmd, COMMAND_PWD) == 0) {
             // look at the client code to see the other side of this command

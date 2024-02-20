@@ -19,6 +19,7 @@
 static int is_verbose = 0;
 static int vifo_fd = -1;
 static char vifo_name[PATH_MAX] = {'\0'};
+static sig_atomic_t num_child = 0;
 
 extern void server(void);
 
@@ -66,27 +67,42 @@ main(int argc, char *argv[])
 void exit_handler(void)
 {
 	fprintf(stderr, "Exit handler called!\n");
-	// Testing fifo unlink
     close(vifo_fd);
 	unlink(vifo_name);
 }
 
-void sigint_handler(int)
+void sigint_handler(int sig)
 {
 	fprintf(stderr, "Sigint handler called!\n");
 	exit(EXIT_SUCCESS);
 }
 
-void sigchld_handler(int)
+void sigchld_handler(int sig)
 {
 	fprintf(stderr, "Sigchld handler called!\n");
-	// Reap here
+	
+	int status;
+	pid_t cpid;
+
+	while((cpid = waitpid(-1, &status, 0)) > 0)
+	{
+		--num_child;
+		if(is_verbose > 0) 
+		{
+			fprintf(stderr, "\nParent signal handler: Found child exit %d: pid: %d exit value: %d\n", sig, cpid, WEXITSTATUS(status));
+			if(num_child == 0)
+			{
+				printf("all child processes reaped\n");
+			}
+		}
+	}
+
 }
 
 void
 server(void)
 {
-    ssize_t result = 0;
+//    ssize_t result = 0;
     char buffer[BUFFER_SIZE] = {0};
     pid_t new_server = -1;
 
@@ -108,7 +124,7 @@ server(void)
     // read side is opened.
 	
     for ( ; ; ) {
-		vifo_fd = open(vifo_name, O_RDONLY);
+		vifo_fd = open(vifo_name, O_RDONLY); // Blocks until opened by a client
 		if(vifo_fd < 0)
 		{
 			perror("Opening vifo failed!");
@@ -141,7 +157,8 @@ server(void)
 			exit(EXIT_FAILURE);
         }
         else {
-            // the parent process
+			// The parent process
+			++num_child;
         }
     }
 }

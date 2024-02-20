@@ -213,8 +213,17 @@ client(void)
         if (strcmp(cmd, COMMAND_DIR) == 0) 
 		{
             // send a request to the client-server for the contents of the remote pwd
+			write(vifo_cmd_fd, cmd, strlen(cmd));
             fprintf(stdout, "remote dir:\n");
-            
+        	
+			// Read data in from data vifo
+			vifo_data_fd = open(vifo_name_data, O_RDONLY);
+			while((br = read(vifo_data_fd, buffer, BUFFER_SIZE)) > 0)
+			{
+					write(STDOUT_FILENO, buffer, br);
+			}
+			close(vifo_data_fd);
+			vifo_data_fd = -1;
         }
         else if (strcmp(cmd, COMMAND_PWD) == 0) // Test, not sure 
 		{
@@ -322,8 +331,9 @@ void exit_handler(void)
 	// In the future, this will handle cleanup 
 	// to avoid mem leaks
 	close(vifo_cmd_fd);
-	//close(vifo_data_fd);
 	fprintf(stderr, "Exit handler called!\n");
+	unlink(vifo_name_cmd);
+	unlink(vifo_name_data);	
 }
 
 void sigint_handler(int sig)
