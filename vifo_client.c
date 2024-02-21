@@ -134,6 +134,7 @@ client(void)
     static char path[PATH_MAX] = {'\0'};
     static char cwd[PATH_MAX] = { '\0' };
     static char buffer[BUFFER_SIZE] = {'\0'};
+	char *dir = NULL;
     const int num_colors = sizeof(colors) / sizeof(colors[0]);
     int num_cheers = 0;
     char cmd[10] = {'\0'};
@@ -153,12 +154,12 @@ client(void)
                 , vifo_name_data);
     }
     {
-		if(mkfifo(vifo_name_cmd, VIFO_PERMISSIONS) == 0 && is_verbose > 0)
+		if(mkfifo(vifo_name_cmd, VIFO_PERMISSIONS) != 0 && is_verbose > 0)
 	 	{
 			perror("Making vifo failed!");
 		}
    		
-		if(mkfifo(vifo_name_data, VIFO_PERMISSIONS) == 0 && is_verbose > 0)
+		if(mkfifo(vifo_name_data, VIFO_PERMISSIONS) != 0 && is_verbose > 0)
 	 	{
 			perror("Making vifo failed!");
 		}
@@ -200,8 +201,8 @@ client(void)
         memset(buffer, 0, BUFFER_SIZE);
         rd_res = fgets(buffer, BUFFER_SIZE, stdin);
         if (rd_res == NULL) {
-            // need message
-            exit(EXIT_SUCCESS);
+           	perror("Command entry error"); 
+			exit(EXIT_SUCCESS);
         }
         
         memset(cmd, 0, sizeof(cmd));
@@ -247,7 +248,22 @@ client(void)
 		{
             // send a request to the client-server to change the remote pwd
             // the client-server returns the pwd
+			
+			write(vifo_cmd_fd, buffer, strlen(buffer));
+			vifo_data_fd = open(vifo_name_data, O_RDONLY);
+			
+			strtok(buffer, " \n");
+			dir = strtok(NULL, " \n");
 
+			memset(cwd, 0, PATH_MAX);
+			br = read(vifo_data_fd, cwd, PATH_MAX);
+			if(strcmp(cwd, dir) == 0)
+			{
+				fprintf(stdout, "remote cd:\n\"%s\"\n", cwd);
+			}
+			else fprintf(stdout, "remote cd:\n%s\n", cwd);
+			close(vifo_data_fd);
+			vifo_data_fd = -1;
         }
         else if (strcmp(cmd, COMMAND_GET) == 0) // <--- do this
 		{
@@ -277,8 +293,21 @@ client(void)
             //   form, no directory follows lcd string, in this
             //   form the current directory is changed to your HOME
             //   directory. Consider the chdir() function.
-            char *dir = NULL;
 
+            char *dir = NULL;
+			dir = &(buffer[4]);
+			strtok(dir, " \n");
+
+			if(chdir(dir) != 0)
+			{
+					perror("cd failed");
+					fprintf(stderr, "bad directory \"%s\"\n", dir);
+			}
+			else
+			{
+					getcwd(cwd, PATH_MAX);
+					fprintf(stdout, "local cd:\n%s\n", cwd);
+			}
         }
         else if (strcmp(cmd, COMMAND_LDIR) == 0) // DONE
 		{
@@ -330,7 +359,14 @@ void exit_handler(void)
 {
 	// In the future, this will handle cleanup 
 	// to avoid mem leaks
-	close(vifo_cmd_fd);
+	
+	// IF client_server is still running, send cmd to exit
+	if((vifo_cmd_fd = open(vifo_name_cmd, O_WRONLY | O_NONBLOCK)) >= 0)
+	{
+		write(vifo_cmd_fd, COMMAND_QUIT, strlen(COMMAND_QUIT));
+		close(vifo_cmd_fd);
+	}
+
 	fprintf(stderr, "Exit handler called!\n");
 	unlink(vifo_name_cmd);
 	unlink(vifo_name_data);	

@@ -17,8 +17,11 @@
 #define BUFFER_SIZE 200
 
 static int is_verbose = 0;
+static int vifo_cmd_fd = -1;
 
 extern void client_server(const char *);
+
+void exit_handler(void);
 
 int 
 main(int argc, char *argv[])
@@ -34,7 +37,6 @@ main(int argc, char *argv[])
                 fprintf(stderr, "Client-server: verbose enabled\n");
                 break;
             case 'p':
-				fprintf(stderr, "%s\n", optarg);
                 client_pid_str = optarg;
                 break;
             default:
@@ -52,6 +54,7 @@ main(int argc, char *argv[])
 
     umask(0);
     fprintf(stderr, "Client-server starting\n");
+	atexit(exit_handler);
     client_server(client_pid_str);
 
     return EXIT_SUCCESS;
@@ -63,8 +66,10 @@ client_server(const char *client_pid_str)
     char vifo_name_cmd[PATH_MAX] = { '\0' };
     char vifo_name_data[PATH_MAX] = { '\0' };
     char buffer[BUFFER_SIZE] = {'\0'};
-    char cmd[10] = {'\0'};
-    int vifo_cmd_fd = -1;
+	char cwd[PATH_MAX] = {'\0'};
+   // char cmd[10] = {'\0'};
+	char * cmd;
+	char * dir;
     int vifo_data_fd = -1;
     int result = 0;
     int client_pid = 0;
@@ -87,13 +92,17 @@ client_server(const char *client_pid_str)
                 , vifo_name_data);
     }
     // open the command vifo for read-only
-	vifo_cmd_fd = open(vifo_name_cmd, O_RDONLY);
+	//vifo_cmd_fd = open(vifo_name_cmd, O_RDONLY);
 
+	vifo_cmd_fd = open(vifo_name_cmd, O_RDONLY);
     for(;;) {
         ssize_t br = 0;
 
         // read commands from the client
-		read(vifo_cmd_fd, cmd, 10);	
+		memset(buffer, 0, BUFFER_SIZE);
+		read(vifo_cmd_fd, buffer, BUFFER_SIZE);	
+		cmd = strtok(buffer, " \n");
+		dir = strtok(NULL, " \n");
 
         // get the command sent from the client for checking
         if (strcmp(cmd, COMMAND_DIR) == 0) {
@@ -128,6 +137,22 @@ client_server(const char *client_pid_str)
             vifo_data_fd = -1;
         }
         else if (strcmp(cmd, COMMAND_CD) == 0) {
+			
+			vifo_data_fd = open(vifo_name_data, O_WRONLY);
+			if(chdir(dir) != 0)
+			{
+				perror("client cd failed");
+				fprintf(stderr, "failed cd \"%s\"\n", dir);
+				write(vifo_data_fd, dir, strlen(dir));
+				//write(vifo_data_fd, NULL, 0);
+			}
+			else
+			{
+				getcwd(cwd, PATH_MAX);
+				write(vifo_data_fd, cwd, strlen(cwd));
+			}
+			close(vifo_data_fd);
+			vifo_data_fd = -1;
             // change the directory for the client-server
         }
         else if (strcmp(cmd, COMMAND_GET) == 0) {
@@ -143,9 +168,18 @@ client_server(const char *client_pid_str)
 
             // receive a file from the client
         }
+		else if(strcmp(cmd, COMMAND_QUIT) == 0)
+		{
+			exit(EXIT_SUCCESS);
+		}
         else {
             fprintf(stderr, "Client-server: unknown command \"%s\"\n", cmd);
             // unknown command
         }
     }
+}
+
+void exit_handler(void)
+{
+	close(vifo_cmd_fd);
 }

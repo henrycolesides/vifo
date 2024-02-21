@@ -1,5 +1,5 @@
 # vifo Makefile, Henry Sides, Lab3, CS333
-CC = gcc
+CC = gcc -g
 CFLAGS = #-Wextra -Wall -Wshadow -Wunreachable-code -Wredundant-decls -Wmissing-declarations -Wold-style-definition -Wmissing-prototypes -Wdeclaration-after-statement -Wno-return-local-addr -Wunsafe-loop-optimizations -Wuninitialized -Werror
 S = vifo_server
 C = vifo_client

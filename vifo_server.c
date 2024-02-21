@@ -79,21 +79,16 @@ void sigint_handler(int sig)
 
 void sigchld_handler(int sig)
 {
-	fprintf(stderr, "Sigchld handler called!\n");
-	
 	int status;
 	pid_t cpid;
-
-	while((cpid = waitpid(-1, &status, 0)) > 0)
+	
+	while((cpid = waitpid(-1, &status, WNOHANG)) > 0)
 	{
 		--num_child;
-		if(is_verbose > 0) 
+		fprintf(stderr, "\nServer %sClient-server exit %d: pid: %d exit value: %d\n", PROMPT, sig, cpid, WEXITSTATUS(status));
+		if(num_child == 0)
 		{
-			fprintf(stderr, "\nParent signal handler: Found child exit %d: pid: %d exit value: %d\n", sig, cpid, WEXITSTATUS(status));
-			if(num_child == 0)
-			{
-				printf("all child processes reaped\n");
-			}
+			printf("all child processes reaped\n");
 		}
 	}
 
@@ -115,7 +110,7 @@ server(void)
 
     // make a vifo around here
 	fprintf(stderr, "%s\n", vifo_name);
-	if(mkfifo(vifo_name, VIFO_PERMISSIONS) == 0 && is_verbose > 0)
+	if(mkfifo(vifo_name, VIFO_PERMISSIONS) != 0 && is_verbose > 0)
 	{
 			perror("Making vifo failed!");
 	}
@@ -147,16 +142,24 @@ server(void)
             perror("fork failed");
             exit(EXIT_FAILURE);
         }
-        if (0 == new_server) {
+        
+		if (0 == new_server) {
             // exec in here
             // be sure to check for a failure from exec
             // if exec fails, call perror and exit
             // I used execlp()
-			execlp("./vifo_client_server", "vifo_client_server", "-p", buffer, "-v", (char *) NULL);
+			if(is_verbose > 0) execlp("./vifo_client_server", "vifo_client_server", "-p", buffer, "-v", (char *) NULL);
+			else execlp("./vifo_client_server", "vifo_client_server", "-p", buffer, (char *) NULL);
+			
 			perror("exec failed");
 			exit(EXIT_FAILURE);
         }
         else {
+			fprintf(stdout, "Server: client-server (pid = %d)"
+							"forked to handle client pid = %d\n",
+							new_server,
+							atoi(buffer));
+
 			// The parent process
 			++num_child;
         }
