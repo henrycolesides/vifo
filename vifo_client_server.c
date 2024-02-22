@@ -139,12 +139,14 @@ client_server(const char *client_pid_str)
         else if (strcmp(cmd, COMMAND_CD) == 0) {
 			
 			vifo_data_fd = open(vifo_name_data, O_WRONLY);
+			dir = &(buffer[3]);
 			if(chdir(dir) != 0)
 			{
 				perror("client cd failed");
 				fprintf(stderr, "failed cd \"%s\"\n", dir);
-				write(vifo_data_fd, dir, strlen(dir));
-				//write(vifo_data_fd, NULL, 0);
+				memset(cwd, 0, PATH_MAX);
+				sprintf(cwd, "bad directory \"%s\"", dir);		
+				write(vifo_data_fd, cwd, strlen(cwd));
 			}
 			else
 			{
@@ -158,14 +160,46 @@ client_server(const char *client_pid_str)
         else if (strcmp(cmd, COMMAND_GET) == 0) {
             int filefd = -1;
             char filename[BUFFER_SIZE] = {'\0'};
-
+			vifo_data_fd = open(vifo_name_data, O_WRONLY);
+			filefd = open(&buffer[4], O_RDONLY);	
+			if(filefd < 0) // Failed to open
+			{
+				fprintf(stderr, "Client-server: ");
+				perror("get failed");
+				fprintf(stderr, "Client-server: ");
+				fprintf(stderr, "failed get \"%s\"\n", &buffer[4]);
+			}
+			else
+			{
+				memset(buffer, 0, BUFFER_SIZE);
+				while((br = read(filefd, buffer, BUFFER_SIZE)) != 0)
+				{
+					write(vifo_data_fd, buffer, br);
+				}
+				close(filefd);
+			}
+			close(vifo_data_fd);
+			vifo_data_fd = -1;
             // send a file to the client
         }
         else if (strcmp(cmd, COMMAND_PUT) == 0) {
             int filefd = -1;
-            char filename[BUFFER_SIZE] = {'\0'};
+            //char filename[BUFFER_SIZE] = {'\0'};
             mode_t old_mask = 0;
+			//file = dir;
 
+			filefd = open(dir, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
+			vifo_data_fd = open(vifo_name_data, O_RDONLY);
+
+			memset(buffer, 0, BUFFER_SIZE);
+			while((br = read(vifo_data_fd, buffer, BUFFER_SIZE)) != 0)
+			{
+				write(filefd, buffer, br);
+			}
+	
+			if(filefd >= 0) close(filefd);
+			close(vifo_data_fd);
+			vifo_data_fd = -1;
             // receive a file from the client
         }
 		else if(strcmp(cmd, COMMAND_QUIT) == 0)

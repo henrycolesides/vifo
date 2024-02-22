@@ -204,13 +204,16 @@ client(void)
            	perror("Command entry error"); 
 			exit(EXIT_SUCCESS);
         }
-        
+   		
+		strtok(buffer, "\n");	
+
         memset(cmd, 0, sizeof(cmd));
         result = sscanf(buffer, "%s", cmd);
         if (result < 1) 
 		{
             continue;
         }
+	
         if (strcmp(cmd, COMMAND_DIR) == 0) 
 		{
             // send a request to the client-server for the contents of the remote pwd
@@ -257,27 +260,59 @@ client(void)
 
 			memset(cwd, 0, PATH_MAX);
 			br = read(vifo_data_fd, cwd, PATH_MAX);
-			if(strcmp(cwd, dir) == 0)
-			{
-				fprintf(stdout, "remote cd:\n\"%s\"\n", cwd);
-			}
-			else fprintf(stdout, "remote cd:\n%s\n", cwd);
+			fprintf(stdout, "remote cd:\n%s\n", cwd);
 			close(vifo_data_fd);
 			vifo_data_fd = -1;
         }
         else if (strcmp(cmd, COMMAND_GET) == 0) // <--- do this
 		{
             // fetch a file from the client-server
-            int filefd = -1;
             char *file = NULL;
+			int filefd = -1;
 
+			write(vifo_cmd_fd, buffer, strlen(buffer));
+			strtok(buffer, " \n");
+			file = strtok(NULL, " \n");
+
+			filefd = open(file, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
+			vifo_data_fd = open(vifo_name_data, O_RDONLY);
+
+			memset(buffer, 0, BUFFER_SIZE);
+			while((br = read(vifo_data_fd, buffer, BUFFER_SIZE)) != 0)
+			{
+				write(filefd, buffer, br);
+			}
+			if(filefd >= 0) close(filefd);
+			close(vifo_data_fd);
+			vifo_data_fd = -1;
         }
         else if (strcmp(cmd, COMMAND_PUT) == 0)  // <--- do this
 		{
             // push a file from the client to the client-server
-            int filefd = -1;
             char *file = NULL;
-
+            int filefd = -1;
+			
+			write(vifo_cmd_fd, buffer, strlen(buffer));
+			vifo_data_fd = open(vifo_name_data, O_WRONLY);
+			filefd = open(&buffer[4], O_RDONLY);	
+			if(filefd < 0) // Failed to open
+			{
+				fprintf(stderr, "Client: ");
+				perror("put failed");
+				fprintf(stderr, "Client: ");
+				fprintf(stderr, "failed put \"%s\"\n", &buffer[4]);
+			}
+			else
+			{
+				memset(buffer, 0, BUFFER_SIZE);
+				while((br = read(filefd, buffer, BUFFER_SIZE)) != 0)
+				{
+					write(vifo_data_fd, buffer, br);
+				}
+				close(filefd);
+			}
+			close(vifo_data_fd);
+			vifo_data_fd = -1;
         }
         else if (strcmp(cmd, COMMAND_LPWD) == 0) // DONE
 		{
